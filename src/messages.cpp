@@ -68,6 +68,9 @@ void PutRequest::to_json(nlohmann::json& json) const {
         json["expected_version"] = JsonSerializer::serialize_timestamp_version(
             expected_version.value());
     }
+    if (ttl_ms.has_value()) {
+        json["ttl_ms"] = ttl_ms.value();
+    }
 }
 
 void PutRequest::from_json(const nlohmann::json& json) {
@@ -94,6 +97,9 @@ void PutRequest::from_json(const nlohmann::json& json) {
         if (result) {
             expected_version = result.value();
         }
+    }
+    if (json.contains("ttl_ms")) {
+        ttl_ms = json["ttl_ms"].get<int64_t>();
     }
 }
 

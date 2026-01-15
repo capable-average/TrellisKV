@@ -47,6 +47,7 @@ struct PutRequest : public Request {
     std::optional<TimestampVersion> expected_version;
     ConsistencyLevel consistency = ConsistencyLevel::EVENTUAL;
     bool is_replication = false;
+    std::optional<int64_t> ttl_ms;  // TTL in milliseconds, nullopt = no expiry
 
     PutRequest() = default;
     PutRequest(const std::string& k, const std::string& v,

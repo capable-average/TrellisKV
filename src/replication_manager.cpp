@@ -71,7 +71,12 @@ Result<void> ReplicationManager::replicate_write(
                                    operation.original_writer);
     versioned_value.timestamp = operation.timestamp;
 
-    auto local_result = storage_engine_->put(operation.key, versioned_value);
+    std::optional<std::chrono::milliseconds> ttl_chrono;
+    if (versioned_value.ttl_ms.has_value()) {
+        ttl_chrono = std::chrono::milliseconds(versioned_value.ttl_ms.value());
+    }
+
+    auto local_result = storage_engine_->put(operation.key, versioned_value, ttl_chrono);
     if (!local_result.is_success()) {
         update_stats(false);
         return Result<void>::error("Failed to apply write locally: " +
@@ -299,7 +304,12 @@ Response ReplicationManager::apply_replicated_write(
             }
 
             if (should_apply) {
-                auto put_result = storage_engine_->put(request.key, new_value);
+                std::optional<std::chrono::milliseconds> ttl_chrono;
+                if (new_value.ttl_ms.has_value()) {
+                    ttl_chrono = std::chrono::milliseconds(new_value.ttl_ms.value());
+                }
+
+                auto put_result = storage_engine_->put(request.key, new_value, ttl_chrono);
                 if (put_result.is_success()) {
                     return Response::success();
                 } else {
@@ -311,7 +321,12 @@ Response ReplicationManager::apply_replicated_write(
                 return Response::success();
             }
         } else {
-            auto put_result = storage_engine_->put(request.key, new_value);
+            std::optional<std::chrono::milliseconds> ttl_chrono;
+            if (new_value.ttl_ms.has_value()) {
+                ttl_chrono = std::chrono::milliseconds(new_value.ttl_ms.value());
+            }
+
+            auto put_result = storage_engine_->put(request.key, new_value, ttl_chrono);
             if (put_result.is_success()) {
                 return Response::success();
             } else {

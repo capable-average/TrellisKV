@@ -25,7 +25,7 @@ TrellisNode::TrellisNode(const NodeId& node_id, const NodeConfig& config)
     : node_id_(node_id), config_(config), running_(false) {
     network_manager_ = std::make_unique<NetworkManager>(config_.address.port);
 
-    storage_engine_ = std::make_unique<StorageEngine>();
+    storage_engine_ = std::make_unique<StorageEngine>(config_.storage_max_capacity);
 
     hash_ring_ = std::make_unique<HashRing>();
     connection_pool_ = std::make_unique<ConnectionPool>(10);

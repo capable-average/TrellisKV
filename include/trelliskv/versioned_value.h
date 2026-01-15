@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 #include <string>
 
 #include "types.h"
@@ -12,6 +13,7 @@ struct VersionedValue {
     TimestampVersion version;
     NodeId last_writer;
     Timestamp timestamp;
+    std::optional<int64_t> ttl_ms;  // TTL in milliseconds, nullopt = no expiry
 
     VersionedValue()
         : value(""),
