@@ -301,6 +301,14 @@ Result<void> TcpClient::create_socket() {
                                    std::string(strerror(errno)));
     }
 
+    // Disable Nagle's algorithm for lower latency
+    int opt = 1;
+    if (setsockopt(socket_fd_, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
+        close_socket();
+        return Result<void>::error("Failed to set TCP_NODELAY: " +
+                                   std::string(strerror(errno)));
+    }
+
     return Result<void>::success();
 }
 

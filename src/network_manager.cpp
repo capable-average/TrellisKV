@@ -464,6 +464,12 @@ Result<void> NetworkManager::set_socket_options(int socket) {
                                    std::string(strerror(errno)));
     }
 
+    // Disable Nagle's algorithm for lower latency
+    if (setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
+        return Result<void>::error("Failed to set TCP_NODELAY: " +
+                                   std::string(strerror(errno)));
+    }
+
     return Result<void>::success();
 }
 
