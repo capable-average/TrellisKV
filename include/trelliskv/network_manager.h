@@ -33,6 +33,7 @@ class NetworkManager {
     void stop_server();
     bool is_server_running() const;
     uint16_t get_server_port() const;
+    void configure_uds(bool enabled, const std::string& socket_dir);
 
     void set_message_handler(MessageHandler handler);
 
@@ -60,6 +61,7 @@ class NetworkManager {
 
    private:
     void accept_connections();
+    void accept_uds_connections();
     void handle_client_connection(ConnectionId conn_id, int client_socket);
     Result<std::string> receive_message(int socket);
     Result<void> send_message(int socket, const std::string& message);
@@ -68,6 +70,8 @@ class NetworkManager {
     Result<void> set_socket_timeout(int socket,
                                     std::chrono::milliseconds timeout);
     void close_socket(int socket);
+    Result<void> start_uds_server();
+    void cleanup_uds_socket();
 
     int server_socket_;
     uint16_t server_port_;
@@ -76,6 +80,11 @@ class NetworkManager {
     std::unique_ptr<ConnectionPool> connection_pool_;
     std::atomic<ConnectionId> next_connection_id_;
     std::thread accept_thread_;
+
+    bool uds_enabled_ = false;
+    int uds_socket_ = -1;
+    std::string uds_path_;
+    std::thread uds_accept_thread_;
 
     mutable std::mutex connections_mutex_;
     std::unordered_map<ConnectionId, std::thread> active_connections_;

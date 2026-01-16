@@ -416,6 +416,13 @@ bool ConnectionPool::is_connection_valid(Connection* conn) {
 
 Result<std::unique_ptr<ConnectionPool::Connection>>
 ConnectionPool::create_new_connection(const NodeAddress& target) {
+    if (uds_enabled_ && is_local_node(target)) {
+        auto uds_result = create_uds_connection(target);
+        if (uds_result) {
+            return uds_result;
+        }
+    }
+
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         return Result<std::unique_ptr<Connection>>::error(
@@ -460,7 +467,69 @@ ConnectionPool::create_new_connection(const NodeAddress& target) {
     }
 
     return Result<std::unique_ptr<Connection>>::success(
-        std::make_unique<Connection>(sock));
+        std::make_unique<Connection>(sock, false));
+}
+
+void ConnectionPool::configure_uds(bool enabled, const std::string& local_hostname,
+                                   uint16_t local_port, const std::string& uds_socket_dir) {
+    uds_enabled_ = enabled;
+    local_hostname_ = local_hostname;
+    local_port_ = local_port;
+    uds_socket_dir_ = uds_socket_dir;
+}
+
+bool ConnectionPool::is_local_node(const NodeAddress& target) const {
+    // Check for common localhost indicators
+    if (target.hostname == "localhost" ||
+        target.hostname == "127.0.0.1" ||
+        target.hostname == "::1") {
+        return true;
+    }
+    // Check if target matches our own hostname
+    if (target.hostname == local_hostname_) {
+        return true;
+    }
+    return false;
+}
+
+std::string ConnectionPool::get_uds_path(const NodeAddress& target) const {
+    return uds_socket_dir_ + "/node-" + std::to_string(target.port) + ".sock";
+}
+
+Result<std::unique_ptr<ConnectionPool::Connection>>
+ConnectionPool::create_uds_connection(const NodeAddress& target) {
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
+        return Result<std::unique_ptr<Connection>>::error(
+            "Failed to create UDS socket: " + std::string(strerror(errno)));
+    }
+
+    struct timeval tv;
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    struct sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::string socket_path = get_uds_path(target);
+    
+    if (socket_path.length() >= sizeof(addr.sun_path)) {
+        close(sock);
+        return Result<std::unique_ptr<Connection>>::error(
+            "UDS path too long: " + socket_path);
+    }
+    strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(sock);
+        return Result<std::unique_ptr<Connection>>::error(
+            "Failed to connect to UDS " + socket_path + ": " +
+            std::string(strerror(errno)));
+    }
+
+    return Result<std::unique_ptr<Connection>>::success(
+        std::make_unique<Connection>(sock, true));
 }
 
 }  // namespace trelliskv

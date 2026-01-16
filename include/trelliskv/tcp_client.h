@@ -23,6 +23,8 @@ class TcpClient {
     void disconnect();
     bool is_connected() const;
 
+    void set_prefer_uds(bool prefer, const std::string& uds_dir = "/tmp/trelliskv");
+
     // Request operations
     Result<Response> send_get_request(
         const std::string& key,
@@ -58,9 +60,17 @@ class TcpClient {
     int socket_fd_;
     bool connected_;
     NodeAddress server_address_;
+    bool is_uds_connection_ = false;
+
+    bool prefer_uds_ = true;
+    std::string uds_socket_dir_ = "/tmp/trelliskv";
 
     // Helper methods
     Result<void> create_socket();
+    Result<void> try_uds_connect(const NodeAddress& server_address,
+                                 std::chrono::milliseconds timeout);
+    bool is_local_address(const std::string& hostname) const;
+    std::string get_uds_path(uint16_t port) const;
     Result<std::string> receive_message();
     Result<void> send_message(const std::string& message);
     Result<void> set_socket_timeout(std::chrono::milliseconds timeout);

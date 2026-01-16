@@ -20,6 +20,9 @@ struct NodeConfig {
     size_t storage_max_capacity = 0;  // 0 = unlimited entries
     int64_t default_ttl_ms = 0;       // 0 = no default TTL
 
+    bool enable_uds = true;
+    std::string uds_socket_dir = "/tmp/trelliskv";
+
     NodeConfig() = default;
     NodeConfig(const std::string& host, uint16_t port) : address(host, port) {}
 };

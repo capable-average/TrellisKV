@@ -25,10 +25,15 @@ TrellisNode::TrellisNode(const NodeId& node_id, const NodeConfig& config)
     : node_id_(node_id), config_(config), running_(false) {
     network_manager_ = std::make_unique<NetworkManager>(config_.address.port);
 
+    network_manager_->configure_uds(config_.enable_uds, config_.uds_socket_dir);
+
     storage_engine_ = std::make_unique<StorageEngine>(config_.storage_max_capacity);
 
     hash_ring_ = std::make_unique<HashRing>();
     connection_pool_ = std::make_unique<ConnectionPool>(10);
+
+    connection_pool_->configure_uds(config_.enable_uds, config_.address.hostname,
+                                    config_.address.port, config_.uds_socket_dir);
 
     request_router_ = std::make_unique<RequestRouter>(
         node_id_, hash_ring_.get(), connection_pool_.get(),

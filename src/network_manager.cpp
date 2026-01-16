@@ -8,10 +8,12 @@
 #include <netinet/tcp.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <thread>
 
@@ -121,6 +123,15 @@ Result<void> NetworkManager::start_server(uint16_t port) {
 
     // Start accept threads
     accept_thread_ = std::thread(&NetworkManager::accept_connections, this);
+
+    // UDS if enabled
+    if (uds_enabled_) {
+        auto uds_result = start_uds_server();
+        if (!uds_result) {
+            std::cerr << "Warning: Failed to start UDS server: " 
+                      << uds_result.error() << std::endl;
+        }
+    }
 
     return Result<void>::success();
 }
@@ -512,6 +523,113 @@ void NetworkManager::close_socket(int socket) {
 
     shutdown(socket, SHUT_RDWR);
     close(socket);
+}
+
+void NetworkManager::configure_uds(bool enabled, const std::string& socket_dir) {
+    uds_enabled_ = enabled;
+    if (enabled && !socket_dir.empty()) {
+        uds_path_ = socket_dir + "/node-" + std::to_string(server_port_) + ".sock";
+    }
+}
+
+Result<void> NetworkManager::start_uds_server() {
+    if (uds_path_.empty()) {
+        uds_path_ = "/tmp/trelliskv/node-" + std::to_string(server_port_) + ".sock";
+    }
+
+    std::filesystem::path socket_dir = std::filesystem::path(uds_path_).parent_path();
+    try {
+        std::filesystem::create_directories(socket_dir);
+    } catch (const std::exception& e) {
+        return Result<void>::error("Failed to create UDS directory: " + 
+                                   std::string(e.what()));
+    }
+
+    // Remove existing socket file if present
+    ::unlink(uds_path_.c_str());
+
+    uds_socket_ = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (uds_socket_ < 0) {
+        return Result<void>::error("Failed to create UDS socket: " +
+                                   std::string(strerror(errno)));
+    }
+
+    struct sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    if (uds_path_.length() >= sizeof(addr.sun_path)) {
+        close(uds_socket_);
+        uds_socket_ = -1;
+        return Result<void>::error("UDS path too long: " + uds_path_);
+    }
+    strncpy(addr.sun_path, uds_path_.c_str(), sizeof(addr.sun_path) - 1);
+
+    if (bind(uds_socket_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(uds_socket_);
+        uds_socket_ = -1;
+        return Result<void>::error("Failed to bind UDS socket: " +
+                                   std::string(strerror(errno)));
+    }
+
+    chmod(uds_path_.c_str(), 0660);
+
+    const int backlog = 128;
+    if (listen(uds_socket_, backlog) < 0) {
+        close(uds_socket_);
+        uds_socket_ = -1;
+        ::unlink(uds_path_.c_str());
+        return Result<void>::error("Failed to listen on UDS socket: " +
+                                   std::string(strerror(errno)));
+    }
+
+    // Set non-blocking
+    int flags = fcntl(uds_socket_, F_GETFL, 0);
+    fcntl(uds_socket_, F_SETFL, flags | O_NONBLOCK);
+
+    uds_accept_thread_ = std::thread(&NetworkManager::accept_uds_connections, this);
+
+    return Result<void>::success();
+}
+
+void NetworkManager::accept_uds_connections() {
+    while (server_running_.load()) {
+        struct sockaddr_un client_addr{};
+        socklen_t client_len = sizeof(client_addr);
+
+        int client_socket =
+            accept(uds_socket_, (struct sockaddr*)&client_addr, &client_len);
+
+        if (client_socket < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                std::this_thread::yield();
+                continue;
+            } else if (server_running_.load()) {
+                break;
+            }
+            break;
+        }
+
+        ConnectionId conn_id = next_connection_id_.fetch_add(1);
+
+        {
+            std::lock_guard<std::mutex> lock(stats_mutex_);
+            stats_.total_connections_accepted++;
+        }
+
+        try {
+            thread_pool_->enqueue([this, conn_id, client_socket]() {
+                handle_client_connection(conn_id, client_socket);
+            });
+        } catch (const std::exception& e) {
+            close_socket(client_socket);
+        }
+    }
+}
+
+void NetworkManager::cleanup_uds_socket() {
+    if (!uds_path_.empty()) {
+        ::unlink(uds_path_.c_str());
+        uds_path_.clear();
+    }
 }
 
 }  // namespace trelliskv

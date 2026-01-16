@@ -31,6 +31,15 @@ Result<void> TcpClient::connect(const NodeAddress& server_address,
 
     server_address_ = server_address;
 
+    if (prefer_uds_ && is_local_address(server_address.hostname)) {
+        auto uds_result = try_uds_connect(server_address, timeout);
+        if (uds_result.is_success()) {
+            is_uds_connection_ = true;
+            connected_ = true;
+            return Result<void>::success();
+        }
+    }
+
     auto socket_result = create_socket();
     if (!socket_result.is_success()) {
         return socket_result;
@@ -65,6 +74,7 @@ Result<void> TcpClient::connect(const NodeAddress& server_address,
                                    std::string(strerror(errno)));
     }
 
+    is_uds_connection_ = false;
     connected_ = true;
     return Result<void>::success();
 }
@@ -73,6 +83,7 @@ void TcpClient::disconnect() {
     if (connected_) {
         close_socket();
         connected_ = false;
+        is_uds_connection_ = false;
     }
 }
 
@@ -413,6 +424,54 @@ std::string TcpClient::generate_request_id() {
     std::stringstream ss;
     ss << "req_" << std::hex << id;
     return ss.str();
+}
+
+void TcpClient::set_prefer_uds(bool prefer, const std::string& uds_dir) {
+    prefer_uds_ = prefer;
+    uds_socket_dir_ = uds_dir;
+}
+
+bool TcpClient::is_local_address(const std::string& hostname) const {
+    return hostname == "localhost" ||
+           hostname == "127.0.0.1" ||
+           hostname == "::1";
+}
+
+std::string TcpClient::get_uds_path(uint16_t port) const {
+    return uds_socket_dir_ + "/node-" + std::to_string(port) + ".sock";
+}
+
+Result<void> TcpClient::try_uds_connect(const NodeAddress& server_address,
+                                        std::chrono::milliseconds timeout) {
+    std::string socket_path = get_uds_path(server_address.port);
+
+    socket_fd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (socket_fd_ < 0) {
+        return Result<void>::error("Failed to create UDS socket: " +
+                                   std::string(strerror(errno)));
+    }
+
+    auto timeout_result = set_socket_timeout(timeout);
+    if (!timeout_result.is_success()) {
+        close_socket();
+        return timeout_result;
+    }
+
+    struct sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    if (socket_path.length() >= sizeof(addr.sun_path)) {
+        close_socket();
+        return Result<void>::error("UDS path too long: " + socket_path);
+    }
+    strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
+
+    if (::connect(socket_fd_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close_socket();
+        return Result<void>::error("Failed to connect to UDS " + socket_path +
+                                   ": " + std::string(strerror(errno)));
+    }
+
+    return Result<void>::success();
 }
 
 }  // namespace trelliskv
