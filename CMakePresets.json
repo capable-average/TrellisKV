@@ -1,39 +1,34 @@
 {
-    "version": 3,
-    "cmakeMinimumRequired": {
-        "major": 3,
-        "minor": 20
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20
+  },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Dev Build",
+      "generator": "Ninja",
+      "binaryDir": "build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
     },
-    "configurePresets": [
-        {
-            "name": "dev",
-            "displayName": "Dev Build",
-            "description": "Build with debug information and no optimizations",
-            "generator": "Ninja",
-            "binaryDir": "build/dev",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "dev"
-            }
-        },
-        {
-            "name": "prod",
-            "displayName": "Prod Build",
-            "description": "Optimized build for performance",
-            "generator": "Ninja",
-            "binaryDir": "build/prod",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "prod"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "dev",
-            "configurePreset": "dev"
-        },
-        {
-            "name": "prod",
-            "configurePreset": "prod"
-        }
-    ]
+    {
+      "name": "prod",
+      "displayName": "Prod Build",
+      "generator": "Ninja",
+      "binaryDir": "build/prod",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "prod", "configurePreset": "prod" }
+  ]
 }
+
