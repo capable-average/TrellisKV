@@ -41,7 +41,10 @@ Detailed discussion on architecture in -> **[ARCHITECTURE](docs/ARCHITECTURE.md)
 ### Prerequisites
 
 - CMake 3.20+
-- C++17 compiler (GCC 7+, Clang 5+)
+- C++17 compiler (Clang 5+, GCC 7+)
+  - Note: if using GCC, edit the "CMAKE_CXX_COMPILER" field in CMakePresets.json
+- Ninja build tool
+  - If using `make`, edit the "generator" field in CmakePresets.json
 
 ### Building from Source
 
