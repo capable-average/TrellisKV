@@ -410,6 +410,7 @@ void ClusterDiscoveryResponse::to_json(nlohmann::json& json) const {
     json["type"] = "CLUSTER_DISCOVERY_RESPONSE";
     json["responding_node_id"] = responding_node_id;
     json["cluster_size"] = cluster_size;
+    json["replication_factor"] = replication_factor;
     if (cluster_state) {
         json["cluster_state"] =
             JsonSerializer::serialize_cluster_state(*cluster_state);
@@ -423,6 +424,9 @@ void ClusterDiscoveryResponse::from_json(const nlohmann::json& json) {
     }
     if (json.contains("cluster_size")) {
         cluster_size = json["cluster_size"];
+    }
+    if (json.contains("replication_factor")) {
+        replication_factor = json["replication_factor"];
     }
     if (json.contains("cluster_state")) {
         auto result =

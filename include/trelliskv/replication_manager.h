@@ -58,7 +58,6 @@ class ReplicationManager {
     VersionedValue resolve_conflicts(const std::vector<VersionedValue>& values);
 
     ReplicationStats get_stats() const;
-    void set_replication_factor(size_t factor);
     size_t get_replication_factor() const;
     size_t get_pending_operations_count() const;
 

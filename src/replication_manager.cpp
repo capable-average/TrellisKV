@@ -28,6 +28,9 @@ ReplicationManager::ReplicationManager(const NodeId& node_id,
       network_manager_(nullptr),
       storage_engine_(nullptr),
       replication_thread_pool_(std::make_unique<ThreadPool>(8)) {
+    if (replication_factor_ == 0) {
+        throw std::invalid_argument("Replication factor must be greater than 0");
+    }
     stats_.start_time = std::chrono::system_clock::now();
 }
 
@@ -223,14 +226,6 @@ VersionedValue ReplicationManager::resolve_conflicts(
 ReplicationManager::ReplicationStats ReplicationManager::get_stats() const {
     std::lock_guard<std::mutex> lock(stats_mutex_);
     return stats_;
-}
-
-void ReplicationManager::set_replication_factor(size_t factor) {
-    if (factor == 0) {
-        throw std::invalid_argument(
-            "Replication factor must be greater than 0");
-    }
-    replication_factor_ = factor;
 }
 
 size_t ReplicationManager::get_replication_factor() const {

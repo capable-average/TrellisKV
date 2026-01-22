@@ -65,8 +65,13 @@ int main(int argc, char* argv[]) {
             std::string arg = argv[i];
 
             if (arg == "--replication-factor" && i + 1 < argc) {
-                config.replication_factor =
-                    static_cast<size_t>(std::stoi(argv[++i]));
+                int rf = std::stoi(argv[++i]);
+                if (rf < 1) {
+                    std::cerr << "Error: Replication factor must be >= 1"
+                              << std::endl;
+                    return 1;
+                }
+                config.replication_factor = static_cast<size_t>(rf);
             } else if (arg == "--hostname" && i + 1 < argc) {
                 hostname = argv[++i];
                 config.address = trelliskv::NodeAddress(hostname, port);

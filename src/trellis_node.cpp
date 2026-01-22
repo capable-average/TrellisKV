@@ -23,6 +23,16 @@ namespace trelliskv {
 
 TrellisNode::TrellisNode(const NodeId& node_id, const NodeConfig& config)
     : node_id_(node_id), config_(config), running_(false) {
+    if (config_.replication_factor < 1) {
+        throw std::invalid_argument("Replication factor must be >= 1");
+    }
+    if (config_.replication_factor > config_.max_cluster_size) {
+        throw std::invalid_argument(
+            "Replication factor (" + std::to_string(config_.replication_factor) +
+            ") cannot exceed max cluster size (" +
+            std::to_string(config_.max_cluster_size) + ")");
+    }
+
     network_manager_ = std::make_unique<NetworkManager>(config_.address.port);
 
     network_manager_->configure_uds(config_.enable_uds, config_.uds_socket_dir);
@@ -643,6 +653,14 @@ Result<ClusterState> TrellisNode::contact_seed_node(
 
         if (const auto* discovery_response =
                 dynamic_cast<const ClusterDiscoveryResponse*>(response.get())) {
+            if (discovery_response->replication_factor != 0 &&
+                discovery_response->replication_factor != config_.replication_factor) {
+                LOG_WARN("Replication factor mismatch: cluster RF=" +
+                         std::to_string(discovery_response->replication_factor) +
+                         ", adopting cluster's RF.");
+                config_.replication_factor = discovery_response->replication_factor;
+            }
+
             if (discovery_response->cluster_state) {
                 return Result<ClusterState>::success(
                     *discovery_response->cluster_state);
@@ -815,7 +833,8 @@ std::unique_ptr<Response> TrellisNode::handle_cluster_discovery_request(
 
         auto cluster_state_ptr = std::make_shared<ClusterState>(cluster_state);
         ClusterDiscoveryResponse discovery_response(cluster_state_ptr, node_id_,
-                                                    cluster_state.nodes.size());
+                                                    cluster_state.nodes.size(),
+                                                    config_.replication_factor);
         discovery_response.status = ResponseStatus::OK;
         discovery_response.request_id = request.request_id;
         discovery_response.responder_id = node_id_;

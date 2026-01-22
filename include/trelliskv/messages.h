@@ -208,13 +208,16 @@ struct ClusterDiscoveryResponse : public Response {
     std::shared_ptr<ClusterState> cluster_state;
     NodeId responding_node_id;
     size_t cluster_size;
+    size_t replication_factor;
 
-    ClusterDiscoveryResponse() = default;
+    ClusterDiscoveryResponse() : replication_factor(0) {}
     ClusterDiscoveryResponse(std::shared_ptr<ClusterState> state,
-                             const NodeId& responder, size_t size)
+                             const NodeId& responder, size_t size,
+                             size_t rf)
         : cluster_state(state),
           responding_node_id(responder),
-          cluster_size(size) {}
+          cluster_size(size),
+          replication_factor(rf) {}
 
     void to_json(nlohmann::json& json) const override;
     void from_json(const nlohmann::json& json) override;

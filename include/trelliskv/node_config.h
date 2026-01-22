@@ -12,6 +12,7 @@ struct NodeConfig {
     NodeAddress address;
     std::vector<NodeAddress> seed_nodes;
     size_t replication_factor = 3;
+    size_t max_cluster_size = 100;
     size_t virtual_nodes_per_physical = 50;
     ConsistencyLevel default_consistency = ConsistencyLevel::EVENTUAL;
     std::chrono::milliseconds heartbeat_interval{1000};
